@@ -17,7 +17,6 @@ public class PlayerController : MonoBehaviour
     private float currentPlayerMovementImpulse = 0.0f;
     private Vector2 playerMovementForwardDirection = Vector2.right;
 
-    private float currentVelocityMagnitude = 0f;
     private bool bounceOccurredThisFrame = false;
 
     #endregion
@@ -42,11 +41,7 @@ public class PlayerController : MonoBehaviour
 
     private void Update()
     {
-
-        //Save current velocity in case Unity physics collision changes it
-        currentVelocityMagnitude = playerRigidBody.velocity.magnitude;
-
-        Debug.DrawRay(transform.position, (Vector2)transform.position + playerMovementForwardDirection);
+        
     }
 
     private void LateUpdate()
@@ -61,7 +56,6 @@ public class PlayerController : MonoBehaviour
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        Debug.Log(collision.gameObject.tag);
         if(collision.gameObject.tag == "Player")
         {
             collision.gameObject.GetComponent<PlayerController>().Die();
@@ -76,7 +70,25 @@ public class PlayerController : MonoBehaviour
 
     private void PlayerMovementUpdate()
     {
-        playerRigidBody.AddForce(playerMovementForwardDirection * currentPlayerMovementImpulse);
+        Vector2 mousePointingDirection = Camera.main.ScreenToWorldPoint(Input.mousePosition) - transform.position;
+        Debug.DrawRay(transform.position, mousePointingDirection.normalized);
+
+        float mouseAngle = Mathf.Clamp(Vector2.SignedAngle(playerMovementForwardDirection, mousePointingDirection), -90f, 90f);
+        Debug.LogFormat("Mouse angle = {0}", mouseAngle);
+        float turnAngleImpulseRatio = Mathf.Abs(mouseAngle / 90f);
+
+        Vector2 turnForceDirection = Vector2Extension.Rotate(playerMovementForwardDirection, mouseAngle);
+
+        Debug.DrawRay(transform.position, turnForceDirection.normalized * currentPlayerMovementImpulse * Time.deltaTime, Color.red);
+
+        playerRigidBody.AddForce(turnForceDirection.normalized * turnAngleImpulseRatio * currentPlayerMovementImpulse * Time.deltaTime);
+        playerMovementForwardDirection = playerRigidBody.velocity.normalized;
+        Debug.DrawRay(transform.position, playerMovementForwardDirection);
+
+        float leftOverForwardImpulse = currentPlayerMovementImpulse * (1 - turnAngleImpulseRatio) * 0.5f + 0.5f;
+
+        playerRigidBody.AddForce(playerMovementForwardDirection.normalized * leftOverForwardImpulse * currentPlayerMovementImpulse * Time.deltaTime);
+        Debug.DrawRay(transform.position, playerMovementForwardDirection.normalized * leftOverForwardImpulse * currentPlayerMovementImpulse * Time.deltaTime, Color.green);
     }
 
     private void Die()
