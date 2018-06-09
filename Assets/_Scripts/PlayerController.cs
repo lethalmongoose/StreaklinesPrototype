@@ -11,8 +11,16 @@ public class PlayerController : MonoBehaviour
 
     [Header("Referenced Components")]
     public Rigidbody2D playerRigidBody;
+
+    #region Private Variables
+
     private float currentPlayerMovementImpulse = 0.0f;
     private Vector2 playerMovementForwardDirection = Vector2.right;
+
+    private float currentVelocityMagnitude = 0f;
+    private bool bounceOccurredThisFrame = false;
+
+    #endregion
 
     #region MonoBehaviour
 
@@ -28,30 +36,51 @@ public class PlayerController : MonoBehaviour
             Debug.LogError("playerRigidBody must not be null", this.gameObject);
         }
         currentPlayerMovementImpulse = initialMovementImpulse;
-        playerMovementForwardDirection = (new Vector2(Random.RandomRange(-1f, 1f), Random.RandomRange(-1f, 1f))).normalized;
+        playerMovementForwardDirection = (new Vector2(Random.Range(-1f, 1f), Random.Range(-1f, 1f))).normalized;
         
     }
 
     private void Update()
     {
-        Debug.DrawRay(new Vector3(transform.position.x, transform.position.y), playerMovementForwardDirection);
+
+        //Save current velocity in case Unity physics collision changes it
+        currentVelocityMagnitude = playerRigidBody.velocity.magnitude;
+
+        Debug.DrawRay(transform.position, (Vector2)transform.position + playerMovementForwardDirection);
     }
+
+    private void LateUpdate()
+    {
+        if(bounceOccurredThisFrame)
+        {
+            playerMovementForwardDirection = playerRigidBody.velocity.normalized;
+
+            bounceOccurredThisFrame = false;
+        }
+    }
+
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        Debug.Log(collision.gameObject.tag);
+        if(collision.gameObject.tag == "Player")
+        {
+            collision.gameObject.GetComponent<PlayerController>().Die();
+            Die();
+        }
+        else if(collision.gameObject.tag == "Wall Bounce")
+        {
+            bounceOccurredThisFrame = true;
+        }
+    }
+    #endregion
 
     private void PlayerMovementUpdate()
     {
         playerRigidBody.AddForce(playerMovementForwardDirection * currentPlayerMovementImpulse);
     }
 
-    private void OnCollisionEnter2D(Collision2D collision)
+    private void Die()
     {
-        Debug.Log(collision.gameObject.tag);
-        if(collision.gameObject.tag == "Wall Bounce")
-        {
-            Debug.Log("Change direction");
-            ContactPoint2D hitContactPoint = collision.contacts[0];
-            Vector2 impactDirection = hitContactPoint.point - (Vector2)transform.position;
-            playerMovementForwardDirection = Vector2.Reflect(impactDirection, hitContactPoint.normal);
-        }
+        Destroy(this.gameObject);
     }
-    #endregion
 }
