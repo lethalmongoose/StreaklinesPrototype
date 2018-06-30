@@ -1,16 +1,29 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
+    #region Inspector Variables
 
     [Tooltip("The force applied every physics update.")]
     public float initialMovementImpulse = 1.0f;
-    public float movementInpulseIncreaseRatio = 1.01f;
+    public float movementInpulseIncreaseSpeed= 1.01f;
+
+    public Color activePlayerColor = Color.green;
 
     [Header("Referenced Components")]
     public Rigidbody2D playerRigidBody;
+    public SpriteRenderer playerSpriteRenderer;
+
+    #endregion
+
+    #region Public Static Variables
+
+    [HideInInspector]
+    public static GameObject activePlayer = null;
+    #endregion
 
     #region Private Variables
 
@@ -18,6 +31,17 @@ public class PlayerController : MonoBehaviour
     private Vector2 playerMovementForwardDirection = Vector2.right;
 
     private bool bounceOccurredThisFrame = false;
+    [SerializeField]
+    private bool isActivePlayerCharacter = false;
+    [SerializeField]
+    private float playerCurrentSpeed = 0f;
+    [SerializeField]
+    private float playerMaxSpeed = 0f;
+
+    private Vector3 previousPosition;
+
+    private GameManager gameManagerInstance;
+
 
     #endregion
 
@@ -28,6 +52,14 @@ public class PlayerController : MonoBehaviour
         PlayerMovementUpdate();
     }
 
+    private void Awake()
+    {
+        if(playerSpriteRenderer == null)
+        {
+            playerSpriteRenderer = GetComponent<SpriteRenderer>();
+        }
+    }
+
     private void Start()
     {
         if(playerRigidBody == null)
@@ -35,13 +67,27 @@ public class PlayerController : MonoBehaviour
             Debug.LogError("playerRigidBody must not be null", this.gameObject);
         }
         currentPlayerMovementImpulse = initialMovementImpulse;
-        playerMovementForwardDirection = (new Vector2(Random.Range(-1f, 1f), Random.Range(-1f, 1f))).normalized;
+        playerMovementForwardDirection = (new Vector2(UnityEngine.Random.Range(-1f, 1f), UnityEngine.Random.Range(-1f, 1f))).normalized;
         
+        if(activePlayer == null)
+        {
+            SetupPlayerCharacter();
+        }
     }
 
-    private void Update()
+    private void SetupPlayerCharacter()
     {
-        
+        activePlayer = this.gameObject;
+        isActivePlayerCharacter = true;
+
+        if(playerSpriteRenderer != null)
+        {
+            playerSpriteRenderer.color = activePlayerColor;
+        }
+
+        this.gameObject.name = "ActivePlayer";
+
+        previousPosition = transform.position;
     }
 
     private void LateUpdate()
@@ -51,6 +97,24 @@ public class PlayerController : MonoBehaviour
             playerMovementForwardDirection = playerRigidBody.velocity.normalized;
 
             bounceOccurredThisFrame = false;
+        }
+
+        if (isActivePlayerCharacter)
+        {
+            playerCurrentSpeed = (transform.position - previousPosition).magnitude / Time.deltaTime;
+
+            previousPosition = transform.position;
+
+            if (playerCurrentSpeed > playerMaxSpeed)
+            {
+                playerMaxSpeed = playerCurrentSpeed;
+            }
+
+            if(gameManagerInstance != null || GameManager.TryGetInstance(out gameManagerInstance))
+            {
+                gameManagerInstance.UpdateScore(playerCurrentSpeed, playerMaxSpeed);
+                Debug.LogFormat("Current Speed: {0}\nMax Speed: {1}", playerCurrentSpeed, playerMaxSpeed);
+            }
         }
     }
 
@@ -70,25 +134,35 @@ public class PlayerController : MonoBehaviour
 
     private void PlayerMovementUpdate()
     {
-        Vector2 mousePointingDirection = Camera.main.ScreenToWorldPoint(Input.mousePosition) - transform.position;
-        Debug.DrawRay(transform.position, mousePointingDirection.normalized);
+        currentPlayerMovementImpulse += movementInpulseIncreaseSpeed * Time.deltaTime;
 
-        float mouseAngle = Mathf.Clamp(Vector2.SignedAngle(playerMovementForwardDirection, mousePointingDirection), -90f, 90f);
-        Debug.LogFormat("Mouse angle = {0}", mouseAngle);
-        float turnAngleImpulseRatio = Mathf.Abs(mouseAngle / 90f);
+        if (isActivePlayerCharacter)
+        {
+            Vector2 mousePointingDirection = Camera.main.ScreenToWorldPoint(Input.mousePosition) - transform.position;
+            Debug.DrawRay(transform.position, mousePointingDirection.normalized);
 
-        Vector2 turnForceDirection = Vector2Extension.Rotate(playerMovementForwardDirection, mouseAngle);
+            float mouseAngle = Mathf.Clamp(Vector2.SignedAngle(playerMovementForwardDirection, mousePointingDirection), -90f, 90f);
+            //Debug.LogFormat("Mouse angle = {0}", mouseAngle);
+            float turnAngleImpulseRatio = Mathf.Abs(mouseAngle / 90f);
 
-        Debug.DrawRay(transform.position, turnForceDirection.normalized * currentPlayerMovementImpulse * Time.deltaTime, Color.red);
+            Vector2 turnForceDirection = Vector2Extension.Rotate(playerMovementForwardDirection, mouseAngle);
 
-        playerRigidBody.AddForce(turnForceDirection.normalized * turnAngleImpulseRatio * currentPlayerMovementImpulse * Time.deltaTime);
-        playerMovementForwardDirection = playerRigidBody.velocity.normalized;
-        Debug.DrawRay(transform.position, playerMovementForwardDirection);
+            Debug.DrawRay(transform.position, turnForceDirection.normalized * currentPlayerMovementImpulse * Time.deltaTime, Color.red);
 
-        float leftOverForwardImpulse = currentPlayerMovementImpulse * (1 - turnAngleImpulseRatio) * 0.5f + 0.5f;
+            playerRigidBody.AddForce(turnForceDirection.normalized * turnAngleImpulseRatio * currentPlayerMovementImpulse * Time.deltaTime);
+            playerMovementForwardDirection = playerRigidBody.velocity.normalized;
+            Debug.DrawRay(transform.position, playerMovementForwardDirection);
 
-        playerRigidBody.AddForce(playerMovementForwardDirection.normalized * leftOverForwardImpulse * currentPlayerMovementImpulse * Time.deltaTime);
-        Debug.DrawRay(transform.position, playerMovementForwardDirection.normalized * leftOverForwardImpulse * currentPlayerMovementImpulse * Time.deltaTime, Color.green);
+            float leftOverForwardImpulse = currentPlayerMovementImpulse * (1 - turnAngleImpulseRatio);
+
+            playerRigidBody.AddForce(playerMovementForwardDirection.normalized * leftOverForwardImpulse * currentPlayerMovementImpulse * Time.deltaTime);
+            Debug.DrawRay(transform.position, playerMovementForwardDirection.normalized * leftOverForwardImpulse * currentPlayerMovementImpulse * Time.deltaTime, Color.green);
+        }
+        else
+        {
+            playerRigidBody.AddForce(playerMovementForwardDirection.normalized * currentPlayerMovementImpulse * Time.deltaTime);
+            Debug.DrawRay(transform.position, playerMovementForwardDirection.normalized * currentPlayerMovementImpulse * Time.deltaTime, Color.green);
+        }
     }
 
     private void Die()

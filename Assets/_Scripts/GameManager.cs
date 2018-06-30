@@ -6,6 +6,8 @@ public class GameManager : MonoBehaviour
 {
     [Header("Referenced Components")]
     public PlayerController playerControllerPrefab;
+    public TMPro.TextMeshProUGUI currentScoreTMP;
+    public TMPro.TextMeshProUGUI highScoreTMP;
 
     [Space(10)]
 
@@ -19,9 +21,36 @@ public class GameManager : MonoBehaviour
 
     private bool initialized = false;
 
-    private void Start()
-    {
+    private const float kScoreDecimalOffset = 100f;
 
+    private static GameManager instance;
+
+    public static bool TryGetInstance(out GameManager gameManagerInstance)
+    {
+        bool success = false;
+        gameManagerInstance = null;
+
+        if (instance != null)
+        {
+            success = true;
+            gameManagerInstance = instance;
+        }
+
+        return success;
+    }
+
+    #region MonoBehaviour
+
+    private void Awake()
+    {
+        if (instance != null && instance != this)
+        {
+            Destroy(this.gameObject);
+        }
+        else
+        {
+            instance = this;
+        }
     }
 
     private void Update()
@@ -49,6 +78,23 @@ public class GameManager : MonoBehaviour
         Gizmos.DrawCube(Vector3.zero, new Vector3(spawnAreaSize.x, spawnAreaSize.y, 1));
     }
 
+    #endregion
+
+    public void UpdateScore(float currentScore, float highestScore)
+    {
+        if(currentScoreTMP != null)
+        {
+            currentScoreTMP.text = (currentScore * kScoreDecimalOffset).ToString("0");
+        }
+
+        if (highScoreTMP != null)
+        {
+            highScoreTMP.text = (highestScore * kScoreDecimalOffset).ToString("0");
+        }
+    }
+
+    #region Private Methods
+
     private void SpawnPlayer()
     {
         Instantiate(playerControllerPrefab, new Vector3(Random.Range(spawningAreaCenter.x - spawnAreaSize.x / 2f, spawningAreaCenter.x + spawnAreaSize.x / 2f),
@@ -64,4 +110,6 @@ public class GameManager : MonoBehaviour
             SpawnPlayer();
         }
     }
+
+    #endregion
 }
